@@ -1,17 +1,22 @@
-class A
-	aa=(a::string) ->
+class A extends T
+	(@name::string, @price::float) ->
 
-class B		
-	(@b) ->
+a = new A
 
-class C		
-	(@c, c::string) ->
+class B
+	(@a::A) ->
+		@l = [@a]
+		@o = @l[1]
+		@u = @l.length
+	get: -> @a
+	set: (@a::A) ->
 
-class D 
-	(@d::D) -> 
+(b::B) ->
+	c = b.l[b.u].price
+	d = b.get!
 
-class E
-	(@e1, @e2) ->
+h = (b::Array[x]) ->
+	l = [a, b[0]]
 
-class F
-	(@f,notF) ->
+g = (a,b) ->
+	h[a,b]

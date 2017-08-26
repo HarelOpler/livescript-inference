@@ -1,4 +1,4 @@
-
+require "./var.rb"
 class Node
 	attr_accessor :additional_info, :nexts, :defined_vars
 	def initialize()
@@ -44,13 +44,19 @@ class Fun < Node
 		 node = from_class(ast_json["body"])
 		 nexts << node
 		 @defined_vars.merge!(node.defined_vars) {|key, v1, v2| v1 + v2}
+		 remove_locals()
+		
+	end
+	def remove_locals()
+		 @defined_vars.each_pair { |_, val|
+		 	val.delete_if { |n| !n.is_this }
+		}
 	end
 end
 
 class Var < Node
 	def next(ast_json)
-		@additional_info[:var_name] = ast_json["value"]
-		@defined_vars["global"] << [@additional_info[:var_name]]
+		@defined_vars["global"] << [Variable.new(ast_json["value"])]
 	end
 end
 
@@ -70,6 +76,7 @@ class Prop < Node
 		@nexts << key
 		@nexts << from_class(ast_json,"val")
 		@defined_vars = key.defined_vars
+		mark_vars_as_this(@defined_vars)
 	end
 end
 
@@ -91,7 +98,12 @@ class Chain < Node
 	end
 	def get_defined_properties()
 		if @head.instance_of? Literal and @head.additional_info[:is_this]
-			@defined_vars = @tails.first.defined_vars
+			@defined_vars = @tails.first.defined_vars.each_pair { |_, val|
+				val.map! {|v| 
+					v.is_this = true
+					v
+				}
+			}
 		end
 	end
 end
@@ -106,8 +118,7 @@ end
 
 class Key < Node
 	def next(ast_json)
-		@additional_info[:name] = ast_json["name"]
-		@defined_vars["global"] = [@additional_info[:name]]
+		@defined_vars["global"] = [Variable.new(ast_json["name"])]
 	end
 end
 
@@ -168,4 +179,14 @@ def from_class(js,key="")
 	end
 	node
 
+end
+
+
+def mark_vars_as_this(vars)
+	vars.each_pair{ |_, val|
+				val.map! {|v| 
+					v.is_this = true
+					v
+				}
+         }
 end
