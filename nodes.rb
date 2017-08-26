@@ -1,4 +1,3 @@
-require 'set'
 
 class Node
 	attr_accessor :additional_info, :nexts, :defined_vars
