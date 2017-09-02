@@ -19,8 +19,10 @@ if ast == ""
 	exit()
 end
 ast_j = JSON.parse(ast)
+# pp ast_j
 ast = Ast.new ast_j
-pp ast
-pp ast.defined_vars
+# pp ast
+# pp ast.defined_vars
+ast.print_defined_vars
 
 
