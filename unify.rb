@@ -21,16 +21,20 @@ class Constant #string, int, ect...?
 		if @name == other.name
 			UnifyResult.new([],{})
 		else
-			UnifyResult.new()
+			UnifyResult.new().error!
 		end
 	end
 
 	def compareCompound(other)
-		UnifyResult.new()
+		UnifyResult.new().error!
 	end
 
 	def compareVar(other)
 		UnifyResult.new([], {other => self}) #based on names for now
+	end
+
+	def sub_vars(subs)
+		self
 	end
 end
 
@@ -56,8 +60,14 @@ class TypeVar
 		end
 	end
 
-end
+	def compareVar(other)
+		UnifyResult.new([], {self => other})
+	end
 
+	def sub_vars(subs)
+		subs[self] || self
+	end
+end
 
 class Compound
 	attr_accessor :head, :tail, :vars
@@ -78,11 +88,16 @@ class Compound
 	end
 
 	def compareCompound(other)
-		if @head != other.head or arity() != other.arity
+		if arity() != other.arity
 			return UnifyResult.new().error!
 		end
+		result = @head.compare(other.head)
+		if result.error?
+			return result
+		end
+
 		zipped = @tail.zip(other.tail)
-		UnifyResult.new(zipped.map { |pair|  Equation.new(*pair) }, {})
+		UnifyResult.new(zipped.map { |pair|  Equation.new(*pair) } + result.equations, result.substitutions)
 	end
 
 	def compareVar(other)
@@ -91,6 +106,17 @@ class Compound
 		else
 			UnifyResult.new([], {other => self})
 		end
+	end
+
+	def sub_vars(subs)
+		to_sub = vars & subs.keys.map { |e| e.name }
+		return self if to_sub.empty?
+		@head ||= subs[@head]
+		@tail.map! { |var|
+			var.sub_vars
+		}
+		self
+
 	end
 end
 
@@ -120,39 +146,48 @@ class Unify
 	def unifiy
 		while !@equations.empty?
 			eq = @equations.pop
-			pp eq
-			pp "---"
 			result = eq.left.compare(eq.right)
 			if result.error?
 				return "Can't unifiy"
 			end
 			new_eq, subs = result.equations, result.substitutions
 			@equations += new_eq
+
 			@substitutions.merge! subs
+			@equations.map! { |eq|
+				Equation.new(eq.left.sub_vars(@substitutions),eq.right.sub_vars(@substitutions))
+			}
+			
 		end
 		@substitutions
 	end
 
+	def print_subs
+		@substitutions.each_pair { |name, val|
+			pp name
+			print "\t->\t"
+			pp val
+		}
+	end
 end
 
-var1 = TypeVar.new("a")
-var2 = TypeVar.new("b")
-var3 = TypeVar.new("g")
-var4 = TypeVar.new("h")
-var5 = TypeVar.new("h")
-var6 = TypeVar.new("d")
+x = TypeVar.new("x")
+y = TypeVar.new("y")
+z = TypeVar.new("z")
+w = TypeVar.new("w")
+u = TypeVar.new("u")
+v = TypeVar.new("v")
 
-const1 = Constant.new("c")
-const2 = Constant.new("e")
+a = Constant.new("a")
+b = Constant.new("b")
+c = Constant.new("c")
+f = Constant.new("f")
+g = Constant.new("g")
+list = Constant.new("list")
 
 
-comp1 = Compound.new("g",[var1],["g","a"])
-comp2 = Compound.new("b",[var3],["b","g"])
-comp3 = Compound.new("f",[comp1,comp2],["b","g","a"])
+yx = Compound.new(y,[x],["y","x"])
+xz = Compound.new(x,[z],["x", "z"])
 
-comp4 = Compound.new("h",[const1],["h"])
-comp5 = Compound.new("d",[const2],["d"])
-comp6 = Compound.new("f",[comp4,comp5],["h","d"])
-
-eqs = [Equation.new(comp3,comp6)]
+eqs = [Equation.new(xz,yx)]
 pp Unify.new(eqs).unifiy
