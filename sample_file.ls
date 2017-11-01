@@ -1,11 +1,3 @@
 
-class A
-   
-    
-a = new A
-
-h = (b::Array[x]) ->
-  l = [a, b[0]]
-
-g = (a, b) ->
-  h[a,b]
+a = [1,2,3]
+c = foo(a,a[2])

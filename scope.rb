@@ -39,9 +39,8 @@ class Scope
 		end
 
 		if !outer_scope.nil?
-			outer_scope.search(var)
+			return outer_scope.search(var)
 		end
-
 		nil #not found - error?
 	end
 

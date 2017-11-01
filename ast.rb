@@ -11,6 +11,8 @@ class Ast
 	def get_vars
 		@head.get_vars
 		# pp Scope.unifier
+		Node.scope.print_vars(0)
+		pp "unifing..."
 		Scope.unifier.unify
 		
 		Node.scope.print_vars(0)

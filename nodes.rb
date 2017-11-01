@@ -119,7 +119,8 @@ class Var < Node
 	def get_vars()
 
 		if @newed.nil?
-			@type = @@scope.add_var(@value)
+			prev_type = @@scope.search(@value)
+			@type = prev_type.nil? ? @@scope.add_var(@value) : prev_type
 		else
 			@type = Constant.new(@value)
 			@@scope.add_var_unifier(@type)
@@ -211,11 +212,13 @@ class Chain < Node
 				end
 			end
 		}
-		if @tails[0].is_paren
+		if @tails[0].class == Index && @tails[0].is_paren
 			e = @tails[0]
 			@type = e.inner_type
 			eq = Equation.new(@head.type,e.type)
 			@@scope.add_equation(eq)
+		elsif @tails[0].class == Call
+			@type = @tails[0].type
 		else
 			@type = @head.type
 		end
@@ -298,18 +301,18 @@ class Call < Node
 	def get_vars()
 		
 		type = @@scope.search(@prev.head.value)
-
 		if type.nil?
 			raise ArgumentError "#{@prev.head.value} not found"
 		end
 		@args.each { |argument| 
 			argument.get_vars() 
 		}
+
 		new_var = @@scope.gen_type()
 		@@scope.add_var_unifier(new_var)
 		args_type = @args.map {|argument| argument.type.name }.join("->") + "->" + new_var.name
-		@@scope.add_equation(Equation.new(type, Equation.from_string(args_type, Scope.unifier))) #pretty this up
-		
+		@@scope.add_equation(Equation.new(type, Equation.from_string(args_type, Scope.unifier))) #pretty this up		
+		@type = new_var
 	end
 end
 
@@ -326,17 +329,24 @@ class Unary < Node
 end
 
 class Binary < Node
+	BOOL_OP = ["===", "<", ">", "<=", "=>" , "!=="]
 	def next(ast_json)
 		@first = from_class(ast_json["first"])
 		@second = from_class(ast_json["second"])
+		@op = ast_json["op"]
 		
 	end
 	def get_vars
 		@first.get_vars
 		@second.get_vars
-
+		@@scope.add_equation(Equation.new(@first.type, @second.type))
+		if BOOL_OP.include?(@op)
+			@type = Constant.new("bool")
+		else
+			@type = @first.type
+		end
 		@value = @first
-		@type = @first.type
+		
 	end
 end
 
@@ -350,12 +360,36 @@ class Arr < Node
 		vars = @items.each { |item| item.type     }
 		arr_type = Constant.new("Array")
 		@@scope.add_var_unifier(arr_type)
+		@items.each_cons(2) { |l,r| @@scope.add_equation(Equation.new(l.type,r.type))}
 		@type = Compound.new(arr_type,[@items[0].type],vars)
 		@@scope.add_var_unifier(@type)
 	end
 end
 
+class Return < Node
+	def next(ast_json)
+		@it = from_class(ast_json["it"])
+	end
+	def get_vars()
+		@it.get_vars
+		@type = @it.type
+	end
+end
 
+
+class If < Node
+	def next(ast_json)
+		@if = from_class(ast_json["if"])
+		@else = from_class(ast_json["else"])
+		@then = from_class(ast_json["then"])
+	end
+	def get_vars()
+		@if.get_vars
+		@else&.get_vars
+		@then.get_vars
+		@type = @then.type
+	end
+end
 CLASSES={
 	"Block" => Block,
 	"Class" => Class_,
@@ -372,13 +406,19 @@ CLASSES={
 	"Call" => Call,
 	"Unary" => Unary,
 	"Binary" => Binary,
-	"Arr" => Arr
+	"Arr" => Arr,
+	"Return" => Return,
+	"If" => If
 }
 CLASSES.default=Node
 
 
 def from_class(js,key="")
 	node = nil
+	if js.nil?
+		return nil
+	end
+
 	if key==""
 		node = CLASSES[js["type"]].new
 		node.next(js)
