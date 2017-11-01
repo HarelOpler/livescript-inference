@@ -15,6 +15,10 @@ class Equation
 		if ts.size == 1
 			if CONSTANTS.include?(ts.first)
 				return unifier.add_var(Constant.new(ts.first))
+			elsif ts.first[0] == "["
+				inner_type = ts.first[1..-2] # extract t from [t]
+				inner_type = create_compound([inner_type],unifier)
+				return unifier.add_var(Compound.new(Constant.new("Array"),[inner_type],[inner_type]))
 			else
 				return unifier.add_var(TypeVar.new(ts.first))
 			end

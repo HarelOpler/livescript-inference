@@ -203,11 +203,14 @@ class Chain < Node
 				elsif @head.value == "this"
 					@@scope.move_to_class_scope(e.key.name)
 				end
-
 				
 				if e.is_array
-					vars = [Constant.new(@tails[i+1].key.it.value)]
-					new_type = Compound.new(Constant.new("Array"),vars,vars).name
+					var = Constant.new(@tails[i+1].key.it.value)
+					if var.name == "_"
+						var = @@scope.gen_type()
+						@@scope.add_var_unifier(var)
+					end
+					new_type = Compound.new(Constant.new("Array"),[var],[var]).name
 					@@scope.update_type(@head.value, new_type)
 				end
 			end
