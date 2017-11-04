@@ -87,7 +87,9 @@ class Fun < Node
 		end
 
 
-		@params.each { |p| p.get_vars }
+		@params.each { |p| 
+			p.get_vars
+		 }
 		@body.get_vars
 
 		if !@is_class_function

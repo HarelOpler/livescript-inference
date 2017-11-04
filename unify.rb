@@ -40,7 +40,7 @@ class Equation
 end
 
 class TemplateVar
-	attr_accessor :name
+	attr_accessor :name, :actual_type
 	alias_method :eql?, :==
 
 	def hash
@@ -53,15 +53,13 @@ class TemplateVar
 		o.class == self.class && o.state == state
 	end
 
-	def length
-		1
-	end
 end
 
 class Constant < TemplateVar #string, int, ect...?
 	
 	def initialize(name)
 		@name = name
+		@actual_type = self
 	end
 
 	def compare(other)
@@ -91,14 +89,12 @@ class Constant < TemplateVar #string, int, ect...?
 	def vars
 		[@name]
 	end
-	def length
-		1000
-	end
 end
 
 class TypeVar < TemplateVar
 	def initialize(name)
 		@name = name
+		@actual_type = self
 	end
 
 	def compare(other)
@@ -117,8 +113,6 @@ class TypeVar < TemplateVar
 		if other.vars.include?(@name)
 			UnifyResult.new().error!
 		else
-			a = {other => self}
-			# pp a
 			UnifyResult.new([], {other => self})
 		end
 	end
@@ -133,9 +127,10 @@ class TypeVar < TemplateVar
 end
 
 class Compound
-	attr_accessor :head, :tail, :vars
+	attr_accessor :head, :tail, :vars, :actual_type
 	def initialize(head,tail,vars) #for now lets get the vars which in tail
 		@head, @tail, @vars = head,tail,vars
+		@actual_type = self
 	end
 
 	def arity
@@ -189,10 +184,6 @@ class Compound
 			@head.name + "->" + @tail.map { |e| e.name }.join(",")
 		end
 	end
-
-	def length
-		@head.length + @tail.map {|e| e.length}.reduce(:+)
-	end
 end
 
 class UnifyResult
@@ -239,12 +230,11 @@ class Unify
 	end
 
 	def unify
-		@equations.sort! {|x,y| x.length <=> y.length}
-
+		# @equations.sort! {|x,y| x.length <=> y.length}
 		while !@equations.empty?
 			eq = @equations.pop
-			l = @union.parent(eq.left)
-			r = @union.parent(eq.right)
+			l = @union.parent(eq.left).actual_type
+			r = @union.parent(eq.right).actual_type
 			result = l.compare(r)
 			if result.error?
 				raise "Can't unifiy"
@@ -254,11 +244,17 @@ class Unify
 			@equations += new_eq
 			new_eq.each { |e| @union.add(e) }
 			subs.each_pair { |name, val|
-				pp "#{name.name} is head of #{val.name}"
-				@union.union(name,val) 
-			}
+				unless name.name == val.name
+				# pp "#{name.name} is head of #{val.name}"
+					head = @union.union(name,val)
+					tail = head == name ? val : name
+					update_actual_types(head,tail)
+				end	
 
+
+			}
 		end
+
 		@union
 	end
 
@@ -283,7 +279,32 @@ class Unify
 		c
 	end
 	def parent(vn)
-		@union.parent(@vars_name[vn])
+		p = @union.parent(@vars_name[vn])
+		if p.class == Compound
+			vars = []
+			return Compound.new(parent(p.head.name),
+								p.tail.map { |e| 
+									par = parent(e.name)
+									vars << par
+									par
+									 }, 
+								vars + [parent(p.head.name)]) 
+		end
+		return p
+	end
+
+	def update_actual_types(head,tail)
+			if tail.class == TypeVar
+					head.actual_type = head.actual_type						
+				elsif tail.class == Constant
+					head.actual_type = tail.actual_type
+				else #Compound
+					if head.actual_type.class == TypeVar
+						head.actual_type = tail.actual_type
+					else head.actual_type.name != tail.actual_type.name
+						@equations << Equation.new(head.actual_type,tail.actual_type)
+					end
+				end
 	end
 end
 

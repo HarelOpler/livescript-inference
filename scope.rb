@@ -52,8 +52,25 @@ class Scope
 		@next_scopes.each { |scope| scope.print_vars(indent_level+1) }
 	end
 
+
+	def get_inner_arg_in_array(x,c)
+			if x.length == 0
+				return [x,c]
+			end
+			if x[0] == "["
+				inner, new_c = get_inner_arg_in_array(x[1..-2],c + 1)
+				[inner , new_c]
+			else
+				[x, c]
+			end
+	end
+
 	def get_real_type_rec(t)
-		types = t.split("->").map { |arg| @@unifier.parent(arg).name }.join("->")
+		
+		types = t.split("->").map { |arg|
+				inner_arg, c = get_inner_arg_in_array(arg,0) #extracts T1 from [[[T1]]]
+				"["*c + @@unifier.parent(inner_arg).actual_type.name + "]"*c
+			}.join("->")
 		if types == t
 			return types
 		end
