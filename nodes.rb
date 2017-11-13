@@ -288,6 +288,7 @@ class Parens < Node
 		@it = from_class(ast_json["it"])
 	end
 	def get_vars
+		@it.get_vars
 		@inner_type = @@scope.gen_type
 		@@scope.add_var_unifier(@inner_type)
 		@type  = Compound.new(Constant.new("Array"),[@inner_type],[@inner_type])
@@ -344,7 +345,11 @@ class Binary < Node
 	def get_vars
 		@first.get_vars
 		@second.get_vars
-		@@scope.add_equation(Equation.new(@first.type, @second.type))
+		x = Equation.new(@first.type, @second.type)
+		@@scope.add_equation(x)
+		pp @op
+		pp x
+
 		if BOOL_OP.include?(@op)
 			@type = Constant.new("bool")
 		else
