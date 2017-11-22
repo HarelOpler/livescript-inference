@@ -1,5 +1,5 @@
 require './unify.rb'
-
+require './vars.rb'
 class Node
 	@@scope = nil
 	attr_accessor :type, :value, :prev
@@ -36,18 +36,15 @@ class Block < Node
 		@lines.each { |line|
 			line.get_vars()
 		}
-		# Ignore the dumym function after a block starts
+		# Ignore the dummy function after a block starts
 		unless @lines[-1].class == Fun && @lines[-1].is_class_function
 			@value = @lines[-1] #last line
 			if @value.nil?
-				@type = Constant.new("unit")
+				@type = Constant.new("unit") #or undefined?
 			else
 				@type = @value.type
 			end
 		end
-	end
-	def value
-		@value
 	end
 end
 
@@ -83,27 +80,38 @@ class Fun < Node
 		if !@is_class_function
 			@name = new_fun()
 			@@scope.add_var(@name)
+			alpha,beta,ftype = Compound.create_function_type(@@scope)
+			@@scope.update_type(@name,ftype)
 			@@scope = @@scope.scope(FunctionScope.new)
 		end
-
 
 		@params.each { |p| 
 			p.get_vars
 		 }
-		@body.get_vars
 
-		if !@is_class_function
-			return_type = @params.size > 0 ? @params.map { |p| 
-				# I get Chain here... need to determine type
-				p.type.name }.join("->") : "unit"
-			@type = return_type +"->"+ @body.type.name
-			@@scope = @@scope.unscope
-			@type = @@scope.update_type(@name,@type)
+		@body.get_vars
+		c = @body.type
+
+		if @is_class_function
+			return
 		end
+
+		return_type = Constant.new("unit")
+		if (@params.size > 0)
+			return_type = @params.reverse.map { |p| 
+							c = Compound.new(p.type,[c],[p.type,c])
+							@@scope.add_var_unifier(p.type,c)
+						} #folding right over params
+		end
+		@@scope = @@scope.unscope
+		@type = @@scope.update_type(@name,c)
+
 	end
 	def value
 		@type
 	end
+
+
 	@@counter = 0
 	def new_fun()
 		@@counter+=1
@@ -127,9 +135,6 @@ class Var < Node
 			@type = Constant.new(@value)
 			@@scope.add_var_unifier(@type)
 		end
-	end
-	def value()
-		@value
 	end
 end
 
@@ -201,7 +206,7 @@ class Chain < Node
 			if e.class == Index
 				# pretty this up.....
 				if e.prototype && @tails[i+1].key.name != "Array"
-					@@scope.update_type(@head.value, @tails[i+1].key.name)
+					@@scope.update_type(@head.value, @tails[i+1].key)
 				elsif @head.value == "this"
 					@@scope.move_to_class_scope(e.key.name)
 				end
@@ -212,7 +217,7 @@ class Chain < Node
 						var = @@scope.gen_type()
 						@@scope.add_var_unifier(var)
 					end
-					new_type = Compound.new(Constant.new("Array"),[var],[var]).name
+					new_type = Compound.new(Constant.new("Array"),[var],[var])
 					@@scope.update_type(@head.value, new_type)
 				end
 			end
@@ -273,7 +278,12 @@ class Assign < Node
 			@left.get_vars()
 			@right.get_vars()
 			@type = @left.type
-			@@scope.add_equation(Equation.new(@left.type,@right.type))
+			# if @right.type.class == Compound
+			# 	#if right side is a function than propogate.. not sure if correct to do so
+			# 	@@scope.update_type(@left.value,@right.type)
+			# else
+				@@scope.add_equation(Equation.new(@left.type,@right.type))
+			# end
 
 		end
 		def value()
@@ -314,11 +324,49 @@ class Call < Node
 			argument.get_vars() 
 		}
 
-		new_var = @@scope.gen_type()
-		@@scope.add_var_unifier(new_var)
-		args_type = @args.map {|argument| argument.type.name }.join("->") + "->" + new_var.name
-		@@scope.add_equation(Equation.new(type, Equation.from_string(args_type, Scope.unifier))) #pretty this up		
-		@type = new_var
+		args = @args.map {|argument| argument.type }
+		if type.class == TypeVar
+			alpha,beta,ftype = Compound.create_function_type(@@scope)
+			@@scope.add_equation(Equation.new(ftype,type))
+			type = ftype
+		end
+		@type = generate_constraints(args,type)
+
+	end
+
+	def generate_constraints(args,function_type)
+		# args include return var
+		# pp args.map { |e| e.name }
+		# pp function_type.name
+		# pp "#########"
+		if args.length <= 0 
+			return function_type
+		end
+
+		if function_type.class == TypeVar
+			#If function_type is T-x and there are still args then T-x := alpha -> beta
+			_,_,ftype = Compound.create_function_type(@@scope)
+			@@scope.add_equation(Equation.new(function_type,ftype))
+			function_type = ftype
+		end
+
+		tau = function_type
+		sigma = args.first
+		alpha,beta,ftype = Compound.create_function_type(@@scope)
+		# pp "tau: #{tau.name}, sigma: #{sigma.name}"
+		# pp "alpha: #{alpha.name}, beta: #{beta.name}"
+		# pp "^^^^^"
+
+		@@scope.add_equation(Equation.new(tau,ftype))
+		@@scope.add_subtype(SubType.new(sigma,alpha))
+		if function_type.class == Compound
+			return generate_constraints(args[1..-1],function_type.tail.first)
+		end
+
+
+		return function_type
+
+
 	end
 end
 
@@ -347,8 +395,6 @@ class Binary < Node
 		@second.get_vars
 		x = Equation.new(@first.type, @second.type)
 		@@scope.add_equation(x)
-		pp @op
-		pp x
 
 		if BOOL_OP.include?(@op)
 			@type = Constant.new("bool")

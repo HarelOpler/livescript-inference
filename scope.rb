@@ -1,4 +1,5 @@
 require './unify.rb'
+require './vars.rb'
 
 class Scope
 =begin
@@ -27,10 +28,24 @@ class Scope
 	end
 
 	def add_var(var)
-		#TODO: create a type for the var.
-		#TODO: check if var is this. maybe inject code?
-		@vars_types[var] = @vars_types[var] || gen_type()
+		#Adding var to symbol table
+		@vars_types[var] = @vars_types[var] || @@unifier.add_var(gen_type())
 		@vars_types[var]
+	end
+
+	def add_var_unifier(*vs)
+		#Adding the type variable in unifier
+		vs.each { |v| 
+			if v.class == Constant
+				@@unifier.add_const(v)
+			end
+			@@unifier.add_var(v)
+		}
+	end
+	
+	def update_type(name,type)
+		@@unifier.add_equation(Equation.new(type,@vars_types[name]))
+		@vars_types[name] = type
 	end
 
 	def search(var)		
@@ -44,67 +59,52 @@ class Scope
 		nil #not found - error?
 	end
 
-	def print_vars(indent_level)
-		@vars_types.each_pair { |v,t|
-			types = get_real_type_rec(t.name)
-			puts " "*indent_level + v.to_s + " : " + types
-		}
-		@next_scopes.each { |scope| scope.print_vars(indent_level+1) }
-	end
 
-
-	def get_inner_arg_in_array(x,c)
-			if x.length == 0
-				return [x,c]
-			end
-			if x[0] == "["
-				inner, new_c = get_inner_arg_in_array(x[1..-2],c + 1)
-				[inner , new_c]
-			else
-				[x, c]
-			end
-	end
-
-	def get_real_type_rec(t)
-		
-		types = t.split("->").map { |arg|
-				inner_arg, c = get_inner_arg_in_array(arg,0) #extracts T1 from [[[T1]]]
-				"["*c + @@unifier.parent(inner_arg).actual_type.name + "]"*c
-			}.join("->")
-		if types == t
-			return types
-		end
-		get_real_type_rec(types)
-	end
-
-	def update_type(name,type)
-		new_type = Equation.from_string(type,@@unifier)
-		@@unifier.add_equation(Equation.new(new_type,@vars_types[name]))
-		@vars_types[name] = new_type
-	end
 
 	@@counter = 0
 	def gen_type()
 		@@counter+=1
-		Equation.from_string("T-" + @@counter.to_s,@@unifier)
+		t = TypeVar.new("T-" + @@counter.to_s,)
+		#@@unifier.add_var(t)
 	end
 
 	def add_equation(eq)
 		@@unifier.add_equation(eq)
 	end
 
-	def add_var_unifier(v)
-		if v.class == Constant
-			@@unifier.add_const(v)
-		end
-		@@unifier.add_var(v)
-
+	def add_subtype(st)
+		@@unifier.add_subtype(st)
 	end
+
 	def self.unifier
 		@@unifier
 	end
 	def move_to_class_scope(var)
 		@class_scope.add_var(var)
+	end
+
+	def print_vars(indent_level)
+		@vars_types.each_pair { |v,t|
+			types = to_actual_type(t)
+			puts " "*indent_level + v.to_s + " : " + types.name
+		}
+		@next_scopes.each { |scope| scope.print_vars(indent_level+1) }
+	end
+
+	def to_actual_type(t)
+		if t.class != Compound
+			type =  @@unifier.parent(t.name).actual_type
+			if type.class != Compound
+				return type
+			end
+			return to_actual_type(type)
+		end
+
+		head = to_actual_type(t.head)
+		tail = to_actual_type(t.tail[0])
+		return Compound.new(head,[tail],[])
+		
+
 	end
 
 end

@@ -33,158 +33,8 @@ class Equation
 		# reminder: deal with function type parameters
 		self.create_compound(types,unifier)
 	end
-
-	def length
-		@left.length + @right.length
-	end
 end
-
-class TemplateVar
-	attr_accessor :name, :actual_type
-	alias_method :eql?, :==
-
-	def hash
-    	state.hash
-  	end
-	def state
-		@name
-	end
-	def eql?(o)
-		o.class == self.class && o.state == state
-	end
-
-end
-
-class Constant < TemplateVar #string, int, ect...?
-	
-	def initialize(name)
-		@name = name
-		@actual_type = self
-	end
-
-	def compare(other)
-		other.compareConst(self)
-	end
-
-	def compareConst(other)
-		if @name == other.name
-			UnifyResult.new([],{})
-		else
-			UnifyResult.new().error!
-		end
-	end
-
-	def compareCompound(other)
-		UnifyResult.new().error!
-	end
-
-	def compareVar(other)
-		UnifyResult.new([], {self => other}) #based on names for now
-	end
-
-	def sub_vars(subs)
-		self
-	end
-
-	def vars
-		[@name]
-	end
-end
-
-class TypeVar < TemplateVar
-	def initialize(name)
-		@name = name
-		@actual_type = self
-	end
-
-	def compare(other)
-		other.compareVar(self)
-	end
-
-	def compareConst(other)
-		UnifyResult.new([], {other => self})
-	end
-
-	def vars
-		[@name]
-	end
-
-	def compareCompound(other)
-		if other.vars.include?(@name)
-			UnifyResult.new().error!
-		else
-			UnifyResult.new([], {other => self})
-		end
-	end
-
-	def compareVar(other)
-		UnifyResult.new([], {self => other})
-	end
-
-	def sub_vars(subs)
-		subs[self] || self
-	end
-end
-
-class Compound
-	attr_accessor :head, :tail, :vars, :actual_type
-	def initialize(head,tail,vars) #for now lets get the vars which in tail
-		@head, @tail, @vars = head,tail,vars
-		@actual_type = self
-	end
-
-	def arity
-		tail.size
-	end
-
-	def compare(other)
-		other.compareCompound(self)
-	end
-
-	def compareConst(other)
-		return UnifyResult.new().error!
-	end
-
-	def compareCompound(other)
-		if arity() != other.arity
-			return UnifyResult.new().error!
-		end
-		result = @head.compare(other.head)
-		if result.error?
-			return result
-		end
-
-		zipped = @tail.zip(other.tail)
-		UnifyResult.new(zipped.map { |pair|  Equation.new(*pair) } + result.equations, result.substitutions)
-	end
-
-	def compareVar(other)
-		if @vars.include?(other.name)
-			UnifyResult.new().error!
-		else
-			UnifyResult.new([], {self => other})
-		end
-	end
-
-	def sub_vars(subs)
-		to_sub = vars & subs.keys.map { |e| e.name }
-		return self if to_sub.empty?
-		@head ||= subs[@head]
-		@tail.map! { |var|
-			var.sub_vars
-		}
-		self
-
-	end
-
-	def name
-		if @head.name == "Array"
-			"[" + @tail.map { |e| e.name }.join(",") + "]"
-		else
-			@head.name + "->" + @tail.map { |e| e.name }.join(",")
-		end
-	end
-end
+require './vars.rb'
 
 class UnifyResult
 	attr_accessor :equations, :substitutions
@@ -219,6 +69,7 @@ end
 class Unify
 	def initialize(equations, vars)
 		@equations = equations
+		@subtype_equations = []
 		vars += equations.flat_map { |e| [e.left, e.right] }
 		vars.push(EmptyUnifier.new) # for initializing 
 		@union = UnionFind::UnionFind.new(Set.new(vars))
@@ -227,10 +78,17 @@ class Unify
 			@vars_name[c] = Constant.new(c)
 			@union.add(@vars_name[c])
 		}
+		@error = false
 	end
 
 	def unify
 		# @equations.sort! {|x,y| x.length <=> y.length}
+		pp "---unifying...---"
+		if @error
+			raise "Can't unifiy"
+		end
+		print_equations()
+
 		while !@equations.empty?
 			eq = @equations.pop
 			l = @union.parent(eq.left).actual_type
@@ -245,21 +103,37 @@ class Unify
 			new_eq.each { |e| @union.add(e) }
 			subs.each_pair { |name, val|
 				unless name.name == val.name
-				# pp "#{name.name} is head of #{val.name}"
+				pp "#{name.name} is head of #{val.name}"
 					head = @union.union(name,val)
 					tail = head == name ? val : name
 					update_actual_types(head,tail)
 				end	
-
-
 			}
 		end
 
 		@union
 	end
 
+	def simplify_constraints
+
+	end
+
 	def print_unification
 		pp @union
+	end
+
+	def print_equations
+		@equations.each { |eq|
+			pp "#{eq.left.name} == #{eq.right.name}"
+		}
+	end
+
+	def print_subtypes_equations
+		@subtype_equations.each { |st|
+			l = @union.parent(st.left).actual_type
+			r = @union.parent(st.right).actual_type
+			pp "#{l.name} <: #{r.name}"
+		}
 	end
 
 	def add_equation(eq)
@@ -267,6 +141,12 @@ class Unify
 		@union.add(eq.left)
 		@union.add(eq.right)
 		eq
+	end
+
+	def add_subtype(st)
+		@subtype_equations << st
+		# add to graph
+		st
 	end
 
 	def add_var(v)
@@ -305,6 +185,10 @@ class Unify
 						@equations << Equation.new(head.actual_type,tail.actual_type)
 					end
 				end
+	end
+
+	def set_error
+		@error = true
 	end
 end
 
