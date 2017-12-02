@@ -1,6 +1,9 @@
 require "pp"
 require "set"
 require "union_find"
+require 'rgl/adjacency'
+require 'rgl/dot'
+require 'rgl/condensation'
 
 CONSTANTS = ["int","string","bool","float","null", "Array", "unit"]
 
@@ -79,6 +82,9 @@ class Unify
 			@union.add(@vars_name[c])
 		}
 		@error = false
+		@coercion = Coercion.new
+		@coercion.add_coercion(Constant.new("int"),Constant.new("string"))
+		@coercion.add_coercion(Constant.new("int"),Constant.new("float"))
 	end
 
 	def unify
@@ -87,7 +93,7 @@ class Unify
 		if @error
 			raise "Can't unifiy"
 		end
-		print_equations()
+		# print_equations()
 
 		while !@equations.empty?
 			eq = @equations.pop
@@ -103,7 +109,7 @@ class Unify
 			new_eq.each { |e| @union.add(e) }
 			subs.each_pair { |name, val|
 				unless name.name == val.name
-				pp "#{name.name} is head of #{val.name}"
+				# pp "#{name.name} is head of #{val.name}"
 					head = @union.union(name,val)
 					tail = head == name ? val : name
 					update_actual_types(head,tail)
@@ -114,21 +120,120 @@ class Unify
 		@union
 	end
 
-	def simplify_constraints
+	def simplify
+		simplified = true
+		final_subtypes = []
+		while simplified && !@subtype_equations.empty?
+			simplified = true
+			# left <: right
+			subeq = @subtype_equations.pop
+			left = subeq.left
+			right = subeq.right
+			# Decompose
+			if left.class == Compound && right.class == Compound
+				pp "Decomposing #{left.name} and #{right.name}"
+				@subtype_equations.push(SubType.new(right.head, left.head))
+				# @subtype_equations.push(SubType.new(left.head, right.head))
+				@subtype_equations.push(SubType.new(left.tail.first, right.tail.first))
+			elsif left.class == Constant && right.class == Constant
+				pp "Eliminating constants #{left.name} and #{right.name}"
+				if @coercion.can_coerce?(left,right)
+					raise "Can't unifiy" 
+				end
+				#make sure they indeed subtype of one another
+			# elsif left.kind_of?(TemplateVar) && right.kind_of?(TemplateVar)
+				# pp "Unifying templates vars #{left.name} and #{right.name}"
+				# add_equation(Equation.new(left,right))
+			elsif left.class == TypeVar && right.class == Compound
+				# Add to unify that left is now C(...)
+				alpha = VarUtils.gen_type()
+				beta = VarUtils.gen_type()
+				ftype = Compound.new(alpha,[beta],[alpha,beta])
+				add_var(alpha)
+				add_var(beta)
+				add_var(ftype)
+				@subtype_equations.push(SubType.new(ftype, right))
+				add_equation(Equation.new(left,ftype))
+				pp "Structure of #{left.name} must be as #{right.name} (now is #{ftype.name})"
+			elsif left.class == Compound && right.class == TypeVar
+				alpha = VarUtils.gen_type()
+				beta = VarUtils.gen_type()
+				ftype = Compound.new(alpha,[beta],[alpha,beta])
+				add_var(alpha)
+				add_var(beta)
+				add_var(ftype)
+				@subtype_equations.push(SubType.new(left, ftype))
+				add_equation(Equation.new(right,ftype))
+				pp "Structure of #{right.name} must be as #{left.name} (now is #{ftype.name})"
+			else
+				pp "No rule to apply. #{left.name} #{right.name}"
+				final_subtypes << subeq
+				if @subtype_equations.empty?
+					simplified = false
+				end
+			end
 
+		end
+		@subtype_equations = final_subtypes
+		unify
 	end
+
+	def to_graph
+		dg = RGL::DirectedAdjacencyGraph[]
+		@subtype_equations.each { |seq|
+			l = @union.parent(seq.left).actual_type
+			r = @union.parent(seq.right).actual_type
+			dg.add_edges([l.name,r.name])
+		}
+		dg
+	end
+
+
+	def infer
+		simplify()
+		@dg = to_graph()
+		@dg.write_to_graphic_file('jpg', 'dg')	
+		cdg = @dg.condensation_graph
+		hset = {}
+		cdg.vertices.map { |v| type_condensation(v,hset) }
+		tdg = RGL::DirectedAdjacencyGraph[]
+		hset.values.each {|t|
+			tdg.add_vertex(t.name)
+		}
+		cdg.edges.each { |e|
+			tdg.add_edges( [hset[e.source].name,hset[e.target].name])
+		}
+
+		tdg.write_to_graphic_file('jpg', 'tdg')	
+	end
+
+	def type_condensation(set, hset)
+		if set.size == 1
+			t = set.detect {|e| true }
+			t = @vars_name[t]
+			hset[set] = t
+			t
+		else
+			new_t = VarUtils.gen_type
+			hset[set] = new_t
+			new_t
+		end
+	end
+
 
 	def print_unification
 		pp @union
 	end
 
 	def print_equations
+		pp "---equations---"
 		@equations.each { |eq|
 			pp "#{eq.left.name} == #{eq.right.name}"
 		}
 	end
 
 	def print_subtypes_equations
+		pp "---subtypes---"
 		@subtype_equations.each { |st|
 			l = @union.parent(st.left).actual_type
 			r = @union.parent(st.right).actual_type
@@ -192,6 +297,23 @@ class Unify
 	end
 end
 
+
+class Coercion
+	def initialize
+		@coercions = Hash.new
+	end
+
+	def add_coercion(v1,v2)
+		#from v1 t v2
+		@coercions[v1] = v2
+	end
+	def can_coerce?(v1,v2)
+		if !@coercions.include?(v1)
+			return false
+		end
+		return @coercions[v1].name == v2.name
+	end
+end
 # x = TypeVar.new("x")
 # y = TypeVar.new("y")
 # z = TypeVar.new("z")

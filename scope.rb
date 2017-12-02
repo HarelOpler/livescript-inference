@@ -29,7 +29,7 @@ class Scope
 
 	def add_var(var)
 		#Adding var to symbol table
-		@vars_types[var] = @vars_types[var] || @@unifier.add_var(gen_type())
+		@vars_types[var] = @vars_types[var] || @@unifier.add_var(VarUtils.gen_type())
 		@vars_types[var]
 	end
 
@@ -61,12 +61,7 @@ class Scope
 
 
 
-	@@counter = 0
-	def gen_type()
-		@@counter+=1
-		t = TypeVar.new("T-" + @@counter.to_s,)
-		#@@unifier.add_var(t)
-	end
+	
 
 	def add_equation(eq)
 		@@unifier.add_equation(eq)

@@ -157,11 +157,20 @@ class Compound
 	end
 
 		def self.create_function_type(scope)
-		alpha = scope.gen_type()
-		beta = scope.gen_type()
+		alpha = VarUtils.gen_type()
+		beta = VarUtils.gen_type()
 		ftype = Compound.new(alpha, [beta], [beta])
 		scope.add_var_unifier(alpha,beta,ftype)
 
 		[alpha,beta,ftype]
+	end
+end
+
+
+class VarUtils
+	@@counter = 0
+	def self.gen_type()
+		@@counter+=1
+		t = TypeVar.new("T-" + @@counter.to_s,)
 	end
 end

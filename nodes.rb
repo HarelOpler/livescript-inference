@@ -98,7 +98,7 @@ class Fun < Node
 
 		return_type = Constant.new("unit")
 		if (@params.size > 0)
-			return_type = @params.reverse.map { |p| 
+			return_type = @params.reverse.map { |p|
 							c = Compound.new(p.type,[c],[p.type,c])
 							@@scope.add_var_unifier(p.type,c)
 						} #folding right over params
@@ -206,7 +206,11 @@ class Chain < Node
 			if e.class == Index
 				# pretty this up.....
 				if e.prototype && @tails[i+1].key.name != "Array"
-					@@scope.update_type(@head.value, @tails[i+1].key)
+					c = Constant.new(@tails[i+1].key.name)
+					@@scope.add_var_unifier(c)
+					@@scope.update_type(@head.value, c)
+					@head.type = c
+					pp "#{@head.value} is now #{c.name}"
 				elsif @head.value == "this"
 					@@scope.move_to_class_scope(e.key.name)
 				end
@@ -214,7 +218,7 @@ class Chain < Node
 				if e.is_array
 					var = Constant.new(@tails[i+1].key.it.value)
 					if var.name == "_"
-						var = @@scope.gen_type()
+						var = VarUtils.gen_type()
 						@@scope.add_var_unifier(var)
 					end
 					new_type = Compound.new(Constant.new("Array"),[var],[var])
@@ -278,12 +282,14 @@ class Assign < Node
 			@left.get_vars()
 			@right.get_vars()
 			@type = @left.type
-			# if @right.type.class == Compound
+			if @right.type.class == Compound
 			# 	#if right side is a function than propogate.. not sure if correct to do so
-			# 	@@scope.update_type(@left.value,@right.type)
-			# else
-				@@scope.add_equation(Equation.new(@left.type,@right.type))
-			# end
+			# 	# ASK SHACHAR
+				@@scope.update_type(@left.value,@right.type)
+			else
+				# @@scope.add_equation(Equation.new(@left.type,@right.type))
+				@@scope.add_subtype(SubType.new(@right.type, @left.type))
+			end
 
 		end
 		def value()
@@ -299,7 +305,7 @@ class Parens < Node
 	end
 	def get_vars
 		@it.get_vars
-		@inner_type = @@scope.gen_type
+		@inner_type = VarUtils.gen_type
 		@@scope.add_var_unifier(@inner_type)
 		@type  = Compound.new(Constant.new("Array"),[@inner_type],[@inner_type])
 		@@scope.add_var_unifier(@type)

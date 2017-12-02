@@ -10,15 +10,14 @@ class Ast
 
 	def get_vars
 		@head.get_vars
+		pp "____BEFORE____"
 		Node.scope.print_vars(0)
-
-
-		
-		pp "---equations---"
-		Scope.unifier.unify
-		pp "---subtypes---"
 		Scope.unifier.print_subtypes_equations
 
+		puts "\n\n\n"
+		pp "____AFTER____"
+		Scope.unifier.infer
+		Scope.unifier.print_subtypes_equations
 		Node.scope.print_vars(0)
 	end
 end
