@@ -1,0 +1,29 @@
+digraph RGL__DirectedAdjacencyGraph {
+    int [
+        fontsize = 8,
+        label = int
+    ]
+
+    "int (T-8)" [
+        fontsize = 8,
+        label = "int (T-8)"
+    ]
+
+    A [
+        fontsize = 8,
+        label = A
+    ]
+
+    "A (T-6)" [
+        fontsize = 8,
+        label = "A (T-6)"
+    ]
+
+    int -> "int (T-8)" [
+        fontsize = 8
+    ]
+
+    A -> "A (T-6)" [
+        fontsize = 8
+    ]
+}

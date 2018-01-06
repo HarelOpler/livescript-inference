@@ -1,0 +1,86 @@
+digraph RGL__DirectedAdjacencyGraph {
+    int [
+        fontsize = 8,
+        label = int
+    ]
+
+    Any [
+        fontsize = 8,
+        label = Any
+    ]
+
+    string [
+        fontsize = 8,
+        label = string
+    ]
+
+    bool [
+        fontsize = 8,
+        label = bool
+    ]
+
+    float [
+        fontsize = 8,
+        label = float
+    ]
+
+    null [
+        fontsize = 8,
+        label = null
+    ]
+
+    Array [
+        fontsize = 8,
+        label = Array
+    ]
+
+    unit [
+        fontsize = 8,
+        label = unit
+    ]
+
+    A [
+        fontsize = 8,
+        label = A
+    ]
+
+    int -> Any [
+        fontsize = 8
+    ]
+
+    int -> string [
+        fontsize = 8
+    ]
+
+    int -> float [
+        fontsize = 8
+    ]
+
+    string -> Any [
+        fontsize = 8
+    ]
+
+    bool -> Any [
+        fontsize = 8
+    ]
+
+    float -> Any [
+        fontsize = 8
+    ]
+
+    null -> Any [
+        fontsize = 8
+    ]
+
+    Array -> Any [
+        fontsize = 8
+    ]
+
+    unit -> Any [
+        fontsize = 8
+    ]
+
+    A -> Any [
+        fontsize = 8
+    ]
+}

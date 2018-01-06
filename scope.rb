@@ -48,8 +48,8 @@ class Scope
 		@vars_types[name] = type
 	end
 
-	def search(var)		
-		if vars_types.has_key?(var)
+	def search(var,clss=nil)
+		if vars_types.has_key?(var) && clss.nil?
 			return vars_types[var]
 		end
 
@@ -58,10 +58,6 @@ class Scope
 		end
 		nil #not found - error?
 	end
-
-
-
-	
 
 	def add_equation(eq)
 		@@unifier.add_equation(eq)
@@ -74,14 +70,13 @@ class Scope
 	def self.unifier
 		@@unifier
 	end
-	def move_to_class_scope(var)
-		@class_scope.add_var(var)
-	end
 
 	def print_vars(indent_level)
 		@vars_types.each_pair { |v,t|
 			types = to_actual_type(t)
-			puts " "*indent_level + v.to_s + " : " + types.name
+			if v["->"].nil?
+				puts " "*indent_level + v.to_s + " : " + types.name
+			end
 		}
 		@next_scopes.each { |scope| scope.print_vars(indent_level+1) }
 	end
@@ -98,8 +93,19 @@ class Scope
 		head = to_actual_type(t.head)
 		tail = to_actual_type(t.tail[0])
 		return Compound.new(head,[tail],[])
-		
+	end
 
+	def add_coercion(l,r)
+		@@unifier.add_coercion(l,r)
+	end
+
+	def add_property_of(t1,t2,source)
+		@@unifier.add_property_of(t1,t2,source)
+	end
+
+	def infer
+		@@unifier.set_names_to_type(@vars_types)
+		@@unifier.infer
 	end
 
 end
@@ -108,6 +114,7 @@ class ClassScope < Scope
 	attr_accessor :name
 	def initialize(name)
 		@name = name
+		@name_t = Constant.new(@name)
 		super
 	end
 	def print_vars(indent_level)
@@ -116,8 +123,23 @@ class ClassScope < Scope
 		super
 	end
 
+	def search(var,clss=nil)
+		if !clss.nil? && clss == name
+			return vars_types[var]
+		end
+		super(var,clss)
+	end
+
 	def update_class_scope(prev_scope)
 		class_scope = self
+	end
+
+	def add_var(var)
+		v = super(var)
+		if var["->"].nil? #if not a function, add to tree
+			@@unifier.add_to_property_tree(Constant.new(var), @name_t,v)
+		end
+		v
 	end
 
 end

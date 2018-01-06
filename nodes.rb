@@ -49,16 +49,24 @@ class Block < Node
 end
 
 class Class_ < Node
+
 	def next(ast_json)
 		@name = ast_json["title"]["value"]
 		@body = from_class(ast_json,"fun") # mark Fun as class body
 		@body.is_class_function = true
+		@sup = ast_json["sup"]
+		if @sup.nil?
+			@sup = Constant.new("Any")
+		else
+			@sup = Constant.new(@sup["value"])
+		end
 	end
 
 	def get_vars()
 		@@scope = @@scope.scope(ClassScope.new(@name))
 		@body.get_vars()
 		@@scope = @@scope.unscope
+		@@scope.add_coercion(Constant.new(@name),@sup)
 	end
 	def value()
 		@name
@@ -142,7 +150,7 @@ class Obj < Node
 	def next(ast_json)
 		@items = []
 		ast_json["items"].each { |inner_prop|
-			@items = from_class(inner_prop)
+			@items << from_class(inner_prop)
 		}
 	end
 
@@ -160,6 +168,8 @@ class Prop < Node
 	def get_vars()
 		@key.get_vars()
 		@val.get_vars()
+		@@scope.add_var(@key.name)
+		@@scope.update_type(@key.name,@val.type)
 	end
 end
 
@@ -201,41 +211,46 @@ class Chain < Node
 
 	def get_vars
 		@head.get_vars()
-		@tails.each { |e| e.get_vars }
-		@tails.each_with_index { |e,i|
-			if e.class == Index
-				# pretty this up.....
-				if e.prototype && @tails[i+1].key.name != "Array"
-					c = Constant.new(@tails[i+1].key.name)
-					@@scope.add_var_unifier(c)
-					@@scope.update_type(@head.value, c)
-					@head.type = c
-					pp "#{@head.value} is now #{c.name}"
-				elsif @head.value == "this"
-					@@scope.move_to_class_scope(e.key.name)
-				end
-				
-				if e.is_array
-					var = Constant.new(@tails[i+1].key.it.value)
-					if var.name == "_"
-						var = VarUtils.gen_type()
-						@@scope.add_var_unifier(var)
-					end
-					new_type = Compound.new(Constant.new("Array"),[var],[var])
-					@@scope.update_type(@head.value, new_type)
-				end
+		@tails.each { |e| 
+			if e.class != Call
+				e.get_vars 
 			end
 		}
-		if @tails[0].class == Index && @tails[0].is_paren
-			e = @tails[0]
-			@type = e.inner_type
-			eq = Equation.new(@head.type,e.type)
-			@@scope.add_equation(eq)
-		elsif @tails[0].class == Call
+		last_index = @@scope.search(@head.value)
+		name_index = @head.value
+		@tails.each_with_index { |e,i|
+			if e.class == Index
+				if e.prototype
+					after_index = @tails[i+1].key.name
+					update_head_type(after_index)
+				else
+					t1 = last_index
+					name_index = name_index + "." + e.key.name
+					last_index = @@scope.add_var(name_index)
+					e.type = last_index
+					@@scope.add_property_of(t1,last_index,name_index)
+				end
+			elsif e.class == Call
+				e.prev =  i > 0 ? @tails[i-1] : self
+				e.get_vars
+			end
+				
+		}
+		if @tails[0].class == Call
 			@type = @tails[0].type
 		else
-			@type = @head.type
-		end
+			@type = last_index
+		end 
+
+	end
+
+
+	def update_head_type(after_index)
+		c = Constant.new(after_index)
+		@@scope.add_var_unifier(c)
+		@@scope.update_type(@head.value, c)
+		@head.type = c
+		pp "#{@head.value} is now #{c.name}"
 	end
 end
 
@@ -251,15 +266,16 @@ class Index < Node
 			if @key.name == "prototype"
 				@prototype = true
 			end
-			if @key.name == "Array"
-				@is_array = true
-			end
 		elsif @key.class == Parens
 			@is_paren = true
 			@inner_type = @key.inner_type
 		end
-		@type = @key.type
-
+	end
+	def head
+		self
+	end
+	def value
+		@key.name
 	end
 end
 
@@ -321,10 +337,10 @@ class Call < Node
 		}
 	end
 	def get_vars()
-		
-		type = @@scope.search(@prev.head.value)
+		# type = @@scope.search(@prev.head.value)
+		type = @prev.type
 		if type.nil?
-			raise ArgumentError "#{@prev.head.value} not found"
+			raise "#{@prev.head.value} not found"
 		end
 		@args.each { |argument| 
 			argument.get_vars() 
@@ -344,7 +360,7 @@ class Call < Node
 		# args include return var
 		# pp args.map { |e| e.name }
 		# pp function_type.name
-		# pp "#########"
+		# pp args
 		if args.length <= 0 
 			return function_type
 		end
