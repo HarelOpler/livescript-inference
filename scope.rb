@@ -12,6 +12,9 @@ class Scope
 	@@unifier = Unify.new([],[])
 	def initialize(*a)
 		@vars_types = Hash.new
+		@real_vars_name = Hash.new
+		@real_to_vars = Hash.new
+
 		@next_scopes = []
 		@class_scope = self
 	end
@@ -27,8 +30,14 @@ class Scope
 		outer_scope
 	end
 
-	def add_var(var)
+	def add_var(var,real_name=nil)
 		#Adding var to symbol table
+		# unless real_name.nil?
+		# 	@real_vars_name[var] = real_name
+		# 	@real_to_vars[real_name] = var
+		# end
+
+		var = var.split(SEPERATOR).first
 		@vars_types[var] = @vars_types[var] || @@unifier.add_var(VarUtils.gen_type())
 		@vars_types[var]
 	end
@@ -44,14 +53,24 @@ class Scope
 	end
 	
 	def update_type(name,type)
-		@@unifier.add_equation(Equation.new(type,@vars_types[name]))
+		name = name.split(SEPERATOR).first
+		# pp @vars_types[name].name
+		# pp "searching for #{name}"
+		x = search(name)
+		# pp self.name
+		# pp "found #{x.name}"
+		@@unifier.add_equation(Equation.new(type,x))
 		@vars_types[name] = type
 	end
 
 	def search(var,clss=nil)
+		var = var.split(SEPERATOR).first
 		if vars_types.has_key?(var) && clss.nil?
 			return vars_types[var]
 		end
+		# if(real_to_vars.has_key?(var) && clss.nil?)
+		# 	return real_to_vars[var]
+		# end
 
 		if !outer_scope.nil?
 			return outer_scope.search(var)
@@ -60,6 +79,9 @@ class Scope
 	end
 
 	def add_equation(eq)
+		# if(eq.right.name == "T-6")
+		# 	throw "here"
+		# end
 		@@unifier.add_equation(eq)
 	end
 
@@ -75,6 +97,7 @@ class Scope
 		@vars_types.each_pair { |v,t|
 			types = to_actual_type(t)
 			if v["->"].nil?
+				# real_v = @real_vars_name[v]
 				puts " "*indent_level + v.to_s + " : " + types.name
 			end
 		}
@@ -82,17 +105,25 @@ class Scope
 	end
 
 	def to_actual_type(t)
-		if t.class != Compound
-			type =  @@unifier.parent(t.name).actual_type
-			if type.class != Compound
-				return type
-			end
-			return to_actual_type(type)
+		type = @@unifier.get_type_from_var(t)
+		if type.class == Compound
+			head = to_actual_type(type.head)
+			tail = to_actual_type(type.tail[0])
+			return Compound.new(head,[tail],[])
+		else
+			return type
 		end
+		# if t.class != Compound
+		# 	type =  @@unifier.parent(t.name).actual_type
+		# 	if type.class != Compound
+		# 		return type
+		# 	end
+		# 	return to_actual_type(type)
+		# end
 
-		head = to_actual_type(t.head)
-		tail = to_actual_type(t.tail[0])
-		return Compound.new(head,[tail],[])
+		# head = to_actual_type(t.head)
+		# tail = to_actual_type(t.tail[0])
+		# return Compound.new(head,[tail],[])
 	end
 
 	def add_coercion(l,r)
@@ -124,6 +155,7 @@ class ClassScope < Scope
 	end
 
 	def search(var,clss=nil)
+		var = var.split(SEPERATOR).first
 		if !clss.nil? && clss == name
 			return vars_types[var]
 		end
@@ -134,8 +166,8 @@ class ClassScope < Scope
 		class_scope = self
 	end
 
-	def add_var(var)
-		v = super(var)
+	def add_var(var,real_name=nil)
+		v = super(var,real_name)
 		if var["->"].nil? #if not a function, add to tree
 			@@unifier.add_to_property_tree(Constant.new(var), @name_t,v)
 		end
@@ -145,7 +177,13 @@ class ClassScope < Scope
 end
 
 class FunctionScope < Scope
-	attr_accessor :head, :params
+	attr_accessor :name
+	@@counter = 0
+	def initialize()
+		@name = "f_" + @@counter.to_s
+		@@counter += 1 
+		super
+	end
 	def print_vars(indent_level)
 		puts "-----"
 

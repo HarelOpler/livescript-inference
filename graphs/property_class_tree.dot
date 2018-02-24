@@ -1,38 +1,33 @@
 digraph RGL__DirectedAdjacencyGraph {
-    A [
-        fontsize = 8,
-        label = A
-    ]
-
-    "A::b" [
-        fontsize = 8,
-        label = "A::b"
-    ]
-
     __global__ [
         fontsize = 8,
         label = __global__
     ]
 
-    "__global__::x" [
+    "__global__::a$$$__global__" [
         fontsize = 8,
-        label = "__global__::x"
+        label = "__global__::a$$$__global__"
     ]
 
-    "__global__::x.b" [
+    "__global__::b$$$__global__" [
         fontsize = 8,
-        label = "__global__::x.b"
+        label = "__global__::b$$$__global__"
     ]
 
-    A -> "A::b" [
+    "__global__::c$$$__global__" [
+        fontsize = 8,
+        label = "__global__::c$$$__global__"
+    ]
+
+    __global__ -> "__global__::a$$$__global__" [
         fontsize = 8
     ]
 
-    __global__ -> "__global__::x" [
+    __global__ -> "__global__::b$$$__global__" [
         fontsize = 8
     ]
 
-    __global__ -> "__global__::x.b" [
+    __global__ -> "__global__::c$$$__global__" [
         fontsize = 8
     ]
 }

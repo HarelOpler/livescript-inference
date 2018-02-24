@@ -17,8 +17,8 @@ class Ast
 		puts "\n\n\n"
 		pp "____AFTER____"
 		Node.scope.infer
-		Scope.unifier.infer
-		Scope.unifier.print_subtypes_equations
+		# Scope.unifier.infer why calling it twice?
+		# Scope.unifier.print_subtypes_equations
 		Node.scope.print_vars(0)
 	end
 end

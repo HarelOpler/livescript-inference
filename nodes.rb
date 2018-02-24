@@ -1,5 +1,6 @@
 require './unify.rb'
 require './vars.rb'
+SEPERATOR = "$$$"
 class Node
 	@@scope = nil
 	attr_accessor :type, :value, :prev
@@ -90,7 +91,7 @@ class Fun < Node
 			@@scope.add_var(@name)
 			alpha,beta,ftype = Compound.create_function_type(@@scope)
 			@@scope.update_type(@name,ftype)
-			@@scope = @@scope.scope(FunctionScope.new)
+			@@scope = @@scope.scope(FunctionScope.new())
 		end
 
 		@params.each { |p| 
@@ -104,13 +105,15 @@ class Fun < Node
 			return
 		end
 
-		return_type = Constant.new("unit")
 		if (@params.size > 0)
-			return_type = @params.reverse.map { |p|
+			@params.reverse.map { |p|
 							c = Compound.new(p.type,[c],[p.type,c])
 							@@scope.add_var_unifier(p.type,c)
 						} #folding right over params
+		else
+			c = Compound.new(Constant.new("unit"),[c],[c])
 		end
+
 		@@scope = @@scope.unscope
 		@type = @@scope.update_type(@name,c)
 
@@ -128,17 +131,19 @@ class Fun < Node
 end
 
 class Var < Node
-	attr_accessor :value
+
+	attr_accessor :value, :real_name
 	def next(ast_json)
 		@value = ast_json["value"]
+		@real_name = @value
 		@newed = ast_json["newed"]
 	end
 
 	def get_vars()
-
 		if @newed.nil?
 			prev_type = @@scope.search(@value)
-			@type = prev_type.nil? ? @@scope.add_var(@value) : prev_type
+			@value = @value + SEPERATOR +  @@scope.name
+			@type = prev_type.nil? ? @@scope.add_var(@value,@real_name) : prev_type
 		else
 			@type = Constant.new(@value)
 			@@scope.add_var_unifier(@type)
@@ -168,7 +173,7 @@ class Prop < Node
 	def get_vars()
 		@key.get_vars()
 		@val.get_vars()
-		@@scope.add_var(@key.name)
+		@@scope.add_var(@key.name,@key.name)
 		@@scope.update_type(@key.name,@val.type)
 	end
 end
@@ -225,22 +230,18 @@ class Chain < Node
 					update_head_type(after_index)
 				else
 					t1 = last_index
-					name_index = name_index + "." + e.key.name
+					name_index = name_index.split(SEPERATOR).first + "." + e.key.name + SEPERATOR + @@scope.name
 					last_index = @@scope.add_var(name_index)
 					e.type = last_index
-					@@scope.add_property_of(t1,last_index,name_index)
+					@@scope.add_property_of(t1,last_index,name_index.split(SEPERATOR).first)
 				end
 			elsif e.class == Call
-				e.prev =  i > 0 ? @tails[i-1] : self
+				e.prev =  i > 0 ? @tails[i-1] : @head
 				e.get_vars
 			end
 				
 		}
-		if @tails[0].class == Call
-			@type = @tails[0].type
-		else
-			@type = last_index
-		end 
+		@type = @tails[-1].type
 
 	end
 
@@ -337,11 +338,15 @@ class Call < Node
 		}
 	end
 	def get_vars()
-		# type = @@scope.search(@prev.head.value)
 		type = @prev.type
+		# if type.nil?
+		# 	type = @@scope.search(@prev.head.value)
+		# end
 		if type.nil?
+			pp @prev
 			raise "#{@prev.head.value} not found"
 		end
+
 		@args.each { |argument| 
 			argument.get_vars() 
 		}
@@ -353,7 +358,6 @@ class Call < Node
 			type = ftype
 		end
 		@type = generate_constraints(args,type)
-
 	end
 
 	def generate_constraints(args,function_type)

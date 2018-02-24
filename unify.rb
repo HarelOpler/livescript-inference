@@ -102,6 +102,7 @@ class Unify
 
 		while !@equations.empty?
 			eq = @equations.pop
+			# pp eq.left
 			l = get_type_from_var(eq.left)
 			# l = @union.parent(eq.left).actual_type
 			r = get_type_from_var(eq.right)
@@ -115,11 +116,13 @@ class Unify
 			@equations += new_eq
 			new_eq.each { |e| @union.add(e) }
 			subs.each_pair { |name, val|
-				unless name.name == val.name
 				# pp "#{name.name} is head of #{val.name}"
+				unless name.name == val.name
 					head = @union.union(name,val)
-					tail = head == name ? val : name
-					update_actual_types(head,tail)
+					unless head.nil?
+						tail = head == name ? val : name
+						update_actual_types(head,tail)
+					end
 				end	
 			}
 		end
@@ -139,8 +142,10 @@ class Unify
 			simplified = true
 			# left <: right
 			subeq = @subtype_equations.pop
-			left = subeq.left.actual_type
-			right = subeq.right.actual_type
+			# left = subeq.left.actual_type
+			# right = subeq.right.actual_type
+			left = get_type_from_var(subeq.left)
+			right = get_type_from_var(subeq.right)
 
 			# Decompose
 			if left.class == Compound && right.class == Compound
@@ -193,7 +198,6 @@ class Unify
 	end
 
 	def are_equations_legal?()
-
 		@subtype_equations.each { |seq|
 			l = seq.left
 			r = seq.right
@@ -205,11 +209,14 @@ class Unify
 		}
 	end
 	def infer
+		# print_equations()
+
 		unify
 		to_graph()#.write_to_graphic_file('jpg','graphs/before_simplify')
+
 		simplify()
 		@dg = to_graph()
-		# @dg.write_to_graphic_file('jpg', 'graphs/dg')
+		@dg.write_to_graphic_file('jpg', 'graphs/dg')
 		can_cycle_elim?(@dg)
 		cdg = @dg.condensation_graph
 		hset = {}
@@ -223,20 +230,25 @@ class Unify
 		}
 		@debug = 0
 		updated_tree = infer2(tdg)
+
 		#writes
 		# tdg.write_to_graphic_file('jpg', 'graphs/tdg')
 		# updated_tree.write_to_graphic_file('jpg', 'graphs/updated_tdg')
 		# @coercion.write_cohercion_tree()
 		# @properties.write_tree()
-		@property_tree.write_tree("property_class_tree")
+
+		# @property_tree.write_tree("property_class_tree")
 	end
 	def infer2(tdg)
 		## CONSTRAINTS RESOL
-		# unify
+		# print_equations()
+		# print_subtypes_equations()
+
 		subs = constrains_resolution(tdg)
 		update_union_from_subs(subs)
 		s = {}
 		total_subs = subs
+
 		while !subs.empty?
 			subs.each_pair {|k,v|
 				s.merge!(subs_from_property(k,v)) {|key, oldval, newval| newval }
@@ -246,8 +258,9 @@ class Unify
 			total_subs.merge!(subs)
 			s = {}
 		end
-		
+
 		updated_tree = update_vertices_from_hash(tdg,total_subs)
+		unify()
 		if total_subs.empty?
 			return updated_tree
 		end
@@ -379,6 +392,7 @@ class Unify
 	#AUX METHODS
 
 	def get_type_from_var(v)
+		v.actual_type = @union.parent(v).actual_type  #updating to be sure
 		@union.parent(v).actual_type
 	end
 	def parent(vn)
@@ -398,7 +412,7 @@ class Unify
 
 	def update_actual_types(head,tail)
 			if tail.class == TypeVar
-					head.actual_type = head.actual_type						
+					tail.actual_type = head.actual_type						
 				elsif tail.class == Constant
 					head.actual_type = tail.actual_type
 				else #Compound
@@ -408,6 +422,9 @@ class Unify
 						@equations << Equation.new(head.actual_type,tail.actual_type)
 					end
 				end
+		# 		pp "--"
+		# pp "#{head.name} is actual_type of #{tail.name}"
+		# pp "after updated: #{tail.name}.actual = #{tail.actual_type.name}"
 	end
 
 	def init_coercions()
@@ -424,15 +441,19 @@ class Unify
 	end
 
 	def update_union_from_subs(subs)
+
 		subs.each_pair { |name, val|
 			n = @vars_name[name]
 			v = @vars_name[val]
-			head = @union.union(n,v)
-			unless head.nil?
-				tail = head == n ? v : n
-				update_actual_types(head,tail)	
-			end
+			# pp "n = #{n.name}, v=#{v.name}"
+			# head = @union.union(n,v)
+			# unless head.nil?
+			# 	tail = head == n ? v : n
+			# 	update_actual_types(head,tail)	
+			# end
+			add_equation(Equation.new(n,v))
 		}
+		unify
 	end
 
 	def update_subtypes_from_union()
@@ -445,7 +466,7 @@ class Unify
 		@subtype_equations = new_subtypes_equations
 	end
 
-	def subs_from_property(var_property,const_property)
+	def subs_from_property(var_property,const_property)		
 		nexts = @properties.get_nexts(var_property)
 		subs = {}
 		nexts.each {|e|
@@ -460,10 +481,15 @@ class Unify
 			property = property_full.split(".").last
 			property = property_main_t.name+"::"+property #distinguish between same properties of the different classes
 			property_t = @property_tree.get_source(property)
-			pp get_type_from_var(property_t)
+			
+			
+			
 			if !property_t.nil? && class_properties.include?(property)
 				#ignore if property not found
 				t = get_type_from_var(property_t)
+				# add_equation(Equation.new(@vars_name[e].actual_type,t))
+				add_equation(Equation.new(get_type_from_var(@vars_name[e]),t))
+
 				subs[e] = t.name
 			else
 				pp ">>>>Warning: property #{property} in #{property_full}::#{property_main_t.name} not found<<<<"

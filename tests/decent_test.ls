@@ -21,9 +21,3 @@ bee(b1,b2)
 c1 = new C
 cc = AandC(b1,c1)
 
-plus = (i,j) ->
-	j
-
-xx::A 
-xx = cc + 1
-

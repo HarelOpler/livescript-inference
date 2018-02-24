@@ -1,2 +1,6 @@
 digraph RGL__DirectedAdjacencyGraph {
+    "T-4" [
+        fontsize = 8,
+        label = "T-4"
+    ]
 }
