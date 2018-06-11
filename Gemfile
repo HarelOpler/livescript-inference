@@ -6,3 +6,4 @@ source "https://rubygems.org"
 
 gem 'rgl'
 gem 'union_find'
+gem 'ruby-debug-ide'

@@ -4,12 +4,12 @@ digraph RGL__DirectedAdjacencyGraph {
         label = int
     ]
 
-    "int (T-5)" [
+    "int (T-1)" [
         fontsize = 8,
-        label = "int (T-5)"
+        label = "int (T-1)"
     ]
 
-    int -> "int (T-5)" [
+    int -> "int (T-1)" [
         fontsize = 8
     ]
 }

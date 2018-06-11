@@ -19,7 +19,7 @@ if ast == ""
 	exit()
 end
 
-
+# puts ast
 
 ast_j = JSON.parse(ast)
 # pp ast_j

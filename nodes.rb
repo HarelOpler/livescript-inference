@@ -4,7 +4,7 @@ SEPERATOR = "$$$"
 class Node
 	@@scope = nil
 	attr_accessor :type, :value, :prev
-	def next(ast_jsno)
+	def parseNextNode(ast_jsno)
 		@error = "unidentified node"
 	end
 
@@ -26,10 +26,10 @@ end
 
 
 class Block < Node
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@lines = []
 		ast_json["lines"].each { |inner_ast|
-			@lines << from_class(inner_ast)
+			@lines << parseAstFromJsonToNodes(inner_ast)
 		}
 	end
 
@@ -51,9 +51,9 @@ end
 
 class Class_ < Node
 
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@name = ast_json["title"]["value"]
-		@body = from_class(ast_json,"fun") # mark Fun as class body
+		@body = parseAstFromJsonToNodes(ast_json, "fun") # mark Fun as class body
 		@body.is_class_function = true
 		@sup = ast_json["sup"]
 		if @sup.nil?
@@ -79,10 +79,10 @@ class Fun < Node
 	def initialize
 		@is_class_function = false
 	end
-	def next(ast_json)
-		@body = from_class(ast_json["body"])
+	def parseNextNode(ast_json)
+		@body = parseAstFromJsonToNodes(ast_json["body"])
 		@params = ast_json["params"].map { |param|
-			from_class(param)
+			parseAstFromJsonToNodes(param)
 		 }
 	end
 	def get_vars()
@@ -133,7 +133,7 @@ end
 class Var < Node
 
 	attr_accessor :value, :real_name
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@value = ast_json["value"]
 		@real_name = @value
 		@newed = ast_json["newed"]
@@ -152,10 +152,10 @@ class Var < Node
 end
 
 class Obj < Node
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@items = []
 		ast_json["items"].each { |inner_prop|
-			@items << from_class(inner_prop)
+			@items << parseAstFromJsonToNodes(inner_prop)
 		}
 	end
 
@@ -165,9 +165,9 @@ class Obj < Node
 end
 
 class Prop < Node
-	def next(ast_json)
-		@key = from_class(ast_json,"key")
-		@val = from_class(ast_json,"val")
+	def parseNextNode(ast_json)
+		@key = parseAstFromJsonToNodes(ast_json, "key")
+		@val = parseAstFromJsonToNodes(ast_json, "val")
 	end
 
 	def get_vars()
@@ -179,7 +179,7 @@ class Prop < Node
 end
 
 class Literal < Node
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@value = ast_json["value"]
 	end
 	def get_vars()
@@ -204,11 +204,11 @@ end
 
 class Chain < Node
 	attr_accessor :head, :tails
-	def next(ast_json)		
-		@head = from_class(ast_json,"head")
+	def parseNextNode(ast_json)
+		@head = parseAstFromJsonToNodes(ast_json, "head")
 
 		@tails = ast_json["tails"].map{ |node_json| 
-			n = from_class(node_json)
+			n = parseAstFromJsonToNodes(node_json)
 			n.prev = self
 			n
 		}
@@ -257,8 +257,8 @@ end
 
 class Index < Node
 	attr_accessor :prototype, :key, :is_paren, :inner_type, :is_array
-	def next(ast_json)
-		@key = from_class(ast_json,"key")
+	def parseNextNode(ast_json)
+		@key = parseAstFromJsonToNodes(ast_json, "key")
 		@is_paren = false
 	end
 	def get_vars()
@@ -282,7 +282,7 @@ end
 
 class Key < Node
 	attr_accessor :name
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@name = ast_json["name"]
 	end
 	def get_vars()
@@ -290,9 +290,9 @@ class Key < Node
 end
 
 class Assign < Node
-		def next(ast_json)
-			@left = from_class(ast_json,"left")
-			@right = from_class(ast_json,"right")
+		def parseNextNode(ast_json)
+			@left = parseAstFromJsonToNodes(ast_json, "left")
+			@right = parseAstFromJsonToNodes(ast_json, "right")
 		end
 
 		def get_vars()
@@ -316,9 +316,9 @@ end
 
 class Parens < Node
 	attr_accessor :inner_type, :it
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		# TODO: fix parens
-		@it = from_class(ast_json["it"])
+		@it = parseAstFromJsonToNodes(ast_json["it"])
 	end
 	def get_vars
 		@it.get_vars
@@ -331,10 +331,10 @@ end
 
 class Call < Node
 	@@return_var = 0
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		@args = []
 		ast_json["args"].each { |e|
-			@args << from_class(e)
+			@args << parseAstFromJsonToNodes(e)
 		}
 	end
 	def get_vars()
@@ -397,9 +397,9 @@ class Call < Node
 end
 
 class Unary < Node
-	def next(ast_json)
+	def parseNextNode(ast_json)
 		#TODO: fix Unary
-		@it = from_class(ast_json["it"])
+		@it = parseAstFromJsonToNodes(ast_json["it"])
 	end
 	def get_vars()
 		@it.get_vars
@@ -410,17 +410,23 @@ end
 
 class Binary < Node
 	BOOL_OP = ["===", "<", ">", "<=", "=>" , "!=="]
-	def next(ast_json)
-		@first = from_class(ast_json["first"])
-		@second = from_class(ast_json["second"])
+	def parseNextNode(ast_json)
+		@first = parseAstFromJsonToNodes(ast_json["first"])
+		@second = parseAstFromJsonToNodes(ast_json["second"])
 		@op = ast_json["op"]
 		
 	end
 	def get_vars
 		@first.get_vars
 		@second.get_vars
-		x = Equation.new(@first.type, @second.type)
-		@@scope.add_equation(x)
+		## CHANGES-HAREL-1 - When a binary operation is used (x op y), an equation constraint is not good (will not accept
+		# operations between int and float for example). should use the complex constraint that looks for the satisfaction
+		# of atleast one of [x <: y, y <: x].
+		# as for now, i dont have the infrastructure to create such a constraint so i will only use the constraint x <: y.
+		# TODO: add symetric constraint
+		createConstraintsForBinaryOp
+		# x = Equation.new(@first.type, @second.type)
+		# @@scope.add_equation(x)
 
 		if BOOL_OP.include?(@op)
 			@type = Constant.new("bool")
@@ -430,27 +436,44 @@ class Binary < Node
 		@value = @first
 		
 	end
+
+	def createConstraintsForBinaryOp()
+		@@scope.add_subtype(SubType.new(@first.type, @second.type))
+	end
 end
 
 class Arr < Node
-	def next(ast_json)
-		@items = ast_json["items"].map { |item| from_class(item) }
+	## CHANGES-HAREL-2 - list should have a type nameholder T for its type, in order to apply the constraint T <: e for each
+	# element e in the list.
+	# also changed the way constraints are generated - from requiring equality between all list elements, to requiring
+	# subtyping T <: e as mentioned above.
+	def parseNextNode(ast_json)
+		@items = ast_json["items"].map { |item| parseAstFromJsonToNodes(item) }
 	end
 
 	def get_vars
+		
+		### Temporary code, just to register array as an identifier for subtyping
+		@value = "ArrayType"
+		prev_type = @@scope.search(@value)
+		@value = @value + SEPERATOR +  @@scope.name
+		@type = prev_type.nil? ? @@scope.add_var(@value,@real_name) : prev_type
+		######
+		
 		@items.each { |item| item.get_vars }
 		vars = @items.each { |item| item.type     }
 		arr_type = Constant.new("Array")
 		@@scope.add_var_unifier(arr_type)
-		@items.each_cons(2) { |l,r| @@scope.add_equation(Equation.new(l.type,r.type))}
-		@type = Compound.new(arr_type,[@items[0].type],vars)
+		# @items.each_cons(2) { |l,r| @@scope.add_equation(Equation.new(l.type,r.type))}
+		@items.each {|element| @@scope.add_subtype(SubType.new(element.type,@type))}
+		@type = Compound.new(arr_type,[@type],vars)
 		@@scope.add_var_unifier(@type)
 	end
 end
 
 class Return < Node
-	def next(ast_json)
-		@it = from_class(ast_json["it"])
+	def parseNextNode(ast_json)
+		@it = parseAstFromJsonToNodes(ast_json["it"])
 	end
 	def get_vars()
 		@it.get_vars
@@ -460,10 +483,10 @@ end
 
 
 class If < Node
-	def next(ast_json)
-		@if = from_class(ast_json["if"])
-		@else = from_class(ast_json["else"])
-		@then = from_class(ast_json["then"])
+	def parseNextNode(ast_json)
+		@if = parseAstFromJsonToNodes(ast_json["if"])
+		@else = parseAstFromJsonToNodes(ast_json["else"])
+		@then = parseAstFromJsonToNodes(ast_json["then"])
 	end
 	def get_vars()
 		@if.get_vars
@@ -495,18 +518,18 @@ CLASSES={
 CLASSES.default=Node
 
 
-def from_class(js,key="")
+def parseAstFromJsonToNodes(jsonAst, key="")
 	node = nil
-	if js.nil?
+	if jsonAst.nil?
 		return nil
 	end
 
 	if key==""
-		node = CLASSES[js["type"]].new
-		node.next(js)
+		node = CLASSES[jsonAst["type"]].new
+		node.parseNextNode(jsonAst)
 	else
-		node = CLASSES[js[key]["type"]].new
-		node.next(js[key])
+		node = CLASSES[jsonAst[key]["type"]].new
+		node.parseNextNode(jsonAst[key])
 	end
 	node
 

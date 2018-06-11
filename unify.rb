@@ -98,7 +98,8 @@ class Unify
 		if @error
 			raise "Can't unifiy"
 		end
-		# print_equations()
+		# print_equations
+		# print_subtypes_equations
 
 		while !@equations.empty?
 			eq = @equations.pop
@@ -109,6 +110,7 @@ class Unify
 			# r = @union.parent(eq.right).actual_type
 			result = l.compare(r)
 			if result.error?
+				pp eq
 				raise "Can't unifiy #{l.name} == #{r.name}"
 			end
 			new_eq, subs = result.equations, result.substitutions
