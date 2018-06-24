@@ -92,7 +92,7 @@ class TypeVar < TemplateVar
 end
 
 class Compound
-	attr_accessor :head, :tail, :vars, :actual_type
+	attr_accessor :head, :tail, :vars, :actual_type, :elements_type
 	def initialize(head,tail,vars) #for now lets get the vars which in tail
 		@head, @tail, @vars = head,tail,vars
 		@actual_type = self
