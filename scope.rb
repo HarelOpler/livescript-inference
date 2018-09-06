@@ -98,7 +98,13 @@ class Scope
 			types = to_actual_type(t)
 			if v["->"].nil?
 				# real_v = @real_vars_name[v]
-				puts " "*indent_level + v.to_s + " : " + types.name
+				variableName = v.to_s
+				if variableName.include? "ArrayType" or variableName.include? "set" or variableName.include? "get"
+					# Those identifiers are omitted because they are imaginary. ArrayType_X is created as a space-saver for array types,
+					# and set\get are created automatically when an array is accessed as lvalue\rvalue, respectively.
+					next
+				end
+				puts " "*indent_level + variableName + " : " + types.name
 			end
 		}
 		@next_scopes.each { |scope| scope.print_vars(indent_level+1) }

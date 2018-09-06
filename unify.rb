@@ -168,7 +168,11 @@ class Unify
 				# Add to unify that left is now C(...)
 				alpha = VarUtils.gen_type()
 				beta = VarUtils.gen_type()
-				ftype = Compound.new(alpha,[beta],[alpha,beta])
+				if right.head.name == "Array"
+					ftype = Compound.new(Constant.new("Array"),[beta],[alpha])
+				else
+					ftype = Compound.new(alpha,[beta],[alpha,beta])
+				end
 				add_var(alpha)
 				add_var(beta)
 				add_var(ftype)
@@ -178,12 +182,16 @@ class Unify
 			elsif left.class == Compound && right.class == TypeVar
 				alpha = VarUtils.gen_type()
 				beta = VarUtils.gen_type()
-				ftype = Compound.new(alpha,[beta],[alpha,beta])
+				if left.head.name == "Array"
+					ftype = Compound.new(Constant.new("Array"),[beta],[alpha])
+				else
+					ftype = Compound.new(alpha,[beta],[alpha,beta])
+				end
 				add_var(alpha)
 				add_var(beta)
 				add_var(ftype)
 				@subtype_equations.push(SubType.new(left, ftype))
-				add_equation(Equation.new(right,ftype))
+				add_equation(Equation.new(ftype,right))
 				# pp "Structure of #{right.name} must be as #{left.name} (now is #{ftype.name})"
 			else
 				# pp "No rule to apply. #{left.name} #{right.name}"
@@ -324,6 +332,7 @@ class Unify
 			end
 			passed.push(v)
 		 }
+		raise "More than 50 iteration of constraint resolution, probably a cycle in the constraint graph"
 		 subs
 	end
 

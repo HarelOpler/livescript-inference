@@ -20,15 +20,14 @@ class Arr < Node
 
     array_utils = ArrayUtils.getInstance
     elementsType = array_utils.getOrCreateTypeForArrayElements(@@scope, array_utils.getNameForArrayElementsType)
-    @type = elementsType
 
     @items.each { |item| item.get_vars }
     vars = @items.each { |item| item.type     }
     arr_type = Constant.new("Array")
     @@scope.add_var_unifier(arr_type)
     # @items.each_cons(2) { |l,r| @@scope.add_equation(Equation.new(l.type,r.type))}
-    @items.each {|element| @@scope.add_subtype(SubType.new(element.type,@type))}
-    @type = Compound.new(arr_type,[@type],vars)
+    @items.each {|element| @@scope.add_subtype(SubType.new(element.type,elementsType))}
+    @type = Compound.new(arr_type,[elementsType],vars)
     @type.elements_type = elementsType
     @@scope.add_var_unifier(@type)
   end

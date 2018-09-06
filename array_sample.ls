@@ -3,15 +3,13 @@ class B extends A
 
 foo = (a) -> 
 	if a
-		return new B
+		return new A
 	else
 		return new B
 
-a1 = new B
-a2 = new B
-a3 = new B
+a1 = new A
+a2 = new A
 
-arr = [a1,a2,a3]
-arr[a] = foo(true)
-c = arr[0]
-b = a
+arr = [[a1],[a2]]
+arr2 = [2]
+arr[0] = arr2

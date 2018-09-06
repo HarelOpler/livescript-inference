@@ -15,11 +15,11 @@ class ArrayUtils
   end
 
   def getTypeOfArrayElements(scope, name)
-    arr = scope.search(name)
-    if arr == nil
+    array = scope.search(name)
+    if array == nil
       return nil
     end
-    return arr.elements_type
+    return array
   end
 
   def getOrCreateTypeForArrayElements(scope,name)
@@ -27,10 +27,19 @@ class ArrayUtils
     if type == nil
       VarUtils.getInstance.addVariable(scope,name)
     end
+
   end
 
   def getNameForArrayElementsType()
     @arraysCounter += 1
     "ArrayType_"+@arraysCounter.to_s
+  end
+
+  def getCompoundTypeForArrayGetter()
+
+  end
+
+  def getCompundTypeForArraySetter()
+
   end
 end

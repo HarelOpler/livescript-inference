@@ -1,4 +1,5 @@
 class Call < Node
+  attr_accessor :args
 @@return_var = 0
 def parseNextNode(ast_json)
   @args = []
